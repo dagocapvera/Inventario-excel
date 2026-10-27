@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#123b5d">
+<title>Inventario · Escáner de códigos</title>
+<style>
+:root{--navy:#123b5d;--blue:#1769aa;--bg:#f3f6f9;--line:#d7e0e8;--text:#17212b;--muted:#617181;--good:#147d45;--danger:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+header{background:var(--navy);color:#fff;padding:18px 16px 20px}header h1{font-size:1.25rem;margin:0 0 5px}header p{margin:0;color:#d8e8f4;font-size:.9rem}
+main{max-width:760px;margin:0 auto;padding:14px;display:grid;gap:14px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px;box-shadow:0 2px 8px #17212b08}
+h2{font-size:1.05rem;margin:0 0 12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{display:flex;flex-direction:column;gap:5px}.wide{grid-column:1/-1}label{font-size:.85rem;font-weight:650;color:#354656}input,textarea{width:100%;font:inherit;padding:11px 12px;border:1px solid #b9c7d4;border-radius:9px;background:#fff;color:var(--text);min-height:44px}textarea{min-height:72px;resize:vertical}input:focus,textarea:focus{outline:2px solid #80b9e8;border-color:var(--blue)}
+button{border:0;border-radius:9px;padding:12px 14px;font:inherit;font-weight:700;cursor:pointer;min-height:44px;background:var(--blue);color:#fff}button.secondary{background:#e8f0f7;color:#17476a;border:1px solid #c5d8e8}button.danger{background:#fff0ef;color:var(--danger);border:1px solid #f2c6c2}button:disabled{opacity:.55;cursor:not-allowed}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.actions button{flex:1}
+#reader{width:100%;overflow:hidden;border-radius:10px;background:#101820;min-height:0}#reader video{width:100%;height:auto}#reader:empty{display:none}.hint{font-size:.85rem;color:var(--muted);line-height:1.45}.status{padding:10px 12px;border-radius:9px;background:#edf5fb;color:#17476a;font-size:.9rem;margin-top:10px}.status.good{background:#eaf7ef;color:var(--good)}.status.error{background:#fff0ef;color:var(--danger)}
+.stats{display:flex;gap:8px;flex-wrap:wrap}.pill{border-radius:99px;background:#edf2f6;padding:7px 10px;font-size:.84rem}
+.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.84rem}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid #e3e9ee;vertical-align:top}th{background:#f5f8fa;white-space:nowrap}td{max-width:190px;overflow-wrap:anywhere}.empty{text-align:center;color:var(--muted);padding:20px 8px}.small{font-size:.78rem;color:var(--muted)}footer{max-width:760px;margin:0 auto;padding:0 16px 22px;color:var(--muted);font-size:.8rem;line-height:1.5}
+@media(max-width:480px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}.actions button{flex:1 1 100%}header{padding-top:16px}}
+</style>
+</head>
+<body>
+<header><h1>Inventario · Escáner de códigos</h1><p>Registro local de productos y exportación a Excel</p></header>
+<main>
+<section class="card">
+<h2>1. Escanear un código</h2>
+<p class="hint">Pulsa “Activar cámara” y permite el acceso. Si tu navegador no admite el escáner, puedes escribir o pegar el código manualmente.</p>
+<div id="reader"></div>
+<div class="actions">
+<button id="startScan">Activar cámara</button>
+<button id="stopScan" class="secondary" disabled>Detener cámara</button>
+</div>
+<div id="scanStatus" class="status" role="status">Cámara apagada.</div>
+</section>
+<section class="card">
+<h2>2. Datos del producto</h2>
+<form id="itemForm">
+<div class="grid">
+<div class="field wide"><label for="barcode">Código de barras *</label><input id="barcode" name="barcode" autocomplete="off" placeholder="Escanea o escribe el código" required></div>
+<div class="field wide"><label for="name">Nombre del producto *</label><input id="name" name="name" autocomplete="off" placeholder="Ej. Teclado HP" required></div>
+<div class="field"><label for="quantity">Cantidad *</label><input id="quantity" name="quantity" type="number" min="0.01" step="any" value="1" required></div>
+<div class="field"><label for="location">Ubicación</label><input id="location" name="location" autocomplete="off" placeholder="Ej. Bodega A"></div>
+<div class="field wide"><label for="notes">Observaciones</label><textarea id="notes" name="notes" placeholder="Estado, novedades, responsable..."></textarea></div>
+</div>
+<div class="actions"><button type="submit">Guardar registro</button><button type="button" id="clearForm" class="secondary">Limpiar campos</button></div>
+</form>
+<div id="saveStatus" class="status" role="status">Los registros se guardan en este dispositivo.</div>
+</section>
+<section class="card">
+<h2>3. Registros guardados</h2>
+<div class="stats"><span class="pill" id="countPill">0 registros</span><span class="pill" id="qtyPill">Cantidad total: 0</span></div>
+<div class="actions">
+<button id="exportXlsx">Exportar a Excel (.xlsx)</button>
+<button id="exportCsv" class="secondary">Exportar CSV</button>
+<button id="backupJson" class="secondary">Copia de seguridad</button>
+</div>
+<p class="hint">Exporta periódicamente tus datos. El archivo Excel se descarga en la carpeta Descargas del navegador, según la configuración de Android.</p>
+<div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Código</th><th>Nombre</th><th>Cantidad</th><th>Ubicación</th><th>Observaciones</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="actions"><button id="deleteAll" class="danger">Borrar todos los registros</button></div>
+</section>
+</main>
+<footer>
+<strong>Privacidad:</strong> los datos se guardan localmente en el almacenamiento del navegador de este dispositivo; no se envían a un servidor. No borres los datos del sitio/navegador si aún no has exportado una copia. La exportación XLSX requiere conexión a internet para cargar la biblioteca de Excel; CSV y la copia JSON se generan sin esa biblioteca.
+</footer>
+<script>
+(() => {
+'use strict';
+const STORAGE_KEY='inventarioEscanerLocal_v1';
+const $=id=>document.getElementById(id);
+let records=[];
+let stream=null, scanLoop=null, detector=null, scanning=false;
+try { records=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); if(!Array.isArray(records)) records=[]; } catch(e){ records=[]; }
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(records));return true}catch(e){$('saveStatus').textContent='No se pudo guardar en el navegador. Exporta una copia y libera espacio.';$('saveStatus').className='status error';return false}}
+function status(id,msg,type=''){const el=$(id);el.textContent=msg;el.className='status'+(type?' '+type:'')}
+function render(){
+ $('countPill').textContent=records.length+' registro'+(records.length===1?'':'s');
+ $('qtyPill').textContent='Cantidad total: '+records.reduce((a,r)=>a+(Number(r.quantity)||0),0);
+ const tbody=$('rows');
+ if(!records.length){tbody.innerHTML='<tr><td colspan="7" class="empty">Todavía no hay registros. Escanea un código y guarda el primer producto.</td></tr>';return}
+ tbody.innerHTML=records.slice().reverse().map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.barcode)}</td><td>${esc(r.name)}</td><td>${esc(r.quantity)}</td><td>${esc(r.location)}</td><td>${esc(r.notes)}</td><td><button type="button" class="danger" data-del="${esc(r.id)}" style="padding:7px 9px;min-height:34px">Eliminar</button></td></tr>`).join('');
+ tbody.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{if(confirm('¿Eliminar este registro?')){records=records.filter(r=>r.id!==b.dataset.del);persist();render()}}));
+}
+function stopCamera(){
+ scanning=false;if(scanLoop)cancelAnimationFrame(scanLoop);scanLoop=null;
+ if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+ const video=$('reader').querySelector('video');if(video)video.srcObject=null;
+ $('reader').innerHTML='';$('startScan').disabled=false;$('stopScan').disabled=true;
+ status('scanStatus','Cámara apagada.');
+}
+async function startCamera(){
+ if(!navigator.mediaDevices?.getUserMedia){status('scanStatus','Este navegador no permite acceder a la cámara. Usa Chrome actualizado y abre la web mediante HTTPS o localhost; también puedes introducir el código manualmente.','error');return}
+ if(!('BarcodeDetector' in window)){status('scanStatus','Este navegador no ofrece el lector de códigos integrado. Prueba Chrome actualizado en Android o introduce el código manualmente.','error');return}
+ try{
+  const supported=await BarcodeDetector.getSupportedFormats();
+  const wanted=['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','codabar','qr_code'];
+  const formats=wanted.filter(f=>supported.includes(f));
+  detector=new BarcodeDetector({formats});
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  $('reader').innerHTML='<video playsinline autoplay muted></video>';
+  const video=$('reader').querySelector('video');video.srcObject=stream;await video.play();
+  scanning=true;$('startScan').disabled=true;$('stopScan').disabled=false;
+  status('scanStatus','Apunta la cámara al código de barras. Al detectarlo, se rellenará el campo.','good');
+  const tick=async()=>{if(!scanning)return;try{if(video.readyState>=2){const codes=await detector.detect(video);if(codes.length&&codes[0].rawValue){$('barcode').value=codes[0].rawValue;$('name').focus();status('scanStatus','Código detectado: '+codes[0].rawValue,'good');stopCamera();return}}}catch(e){}scanLoop=requestAnimationFrame(tick)};
+  tick();
+ }catch(e){stopCamera();status('scanStatus','No se pudo abrir la cámara. Revisa los permisos del navegador y vuelve a intentarlo.','error')}
+}
+$('startScan').addEventListener('click',startCamera);$('stopScan').addEventListener('click',stopCamera);
+$('itemForm').addEventListener('submit',e=>{
+ e.preventDefault();const barcode=$('barcode').value.trim(),name=$('name').value.trim(),quantity=Number($('quantity').value);
+ if(!barcode||!name||!Number.isFinite(quantity)||quantity<=0){status('saveStatus','Completa código, nombre y una cantidad mayor que cero.','error');return}
+ records.push({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),date:new Date().toLocaleString('es-EC'),barcode,name,quantity,location:$('location').value.trim(),notes:$('notes').value.trim()});
+ if(persist()){render();status('saveStatus','Registro guardado en este dispositivo. Puedes escanear el siguiente producto.','good');$('itemForm').reset();$('quantity').value='1';$('barcode').focus()}
+});
+$('clearForm').addEventListener('click',()=>{$('itemForm').reset();$('quantity').value='1';status('saveStatus','Campos limpiados. Los registros guardados no se han borrado.')});
+function csvCell(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+function exportCSV(){const headers=['Fecha','Código de barras','Nombre del producto','Cantidad','Ubicación','Observaciones'];const lines=[headers,...records.map(r=>[r.date,r.barcode,r.name,r.quantity,r.location,r.notes])].map(row=>row.map(csvCell).join(';'));downloadBlob(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'}),'inventario_codigos.csv')}
+$('exportCsv').addEventListener('click',()=>{if(!records.length){alert('No hay registros para exportar.');return}exportCSV()});
+$('exportXlsx').addEventListener('click',async()=>{
+ if(!records.length){alert('No hay registros para exportar.');return}
+ if(!window.XLSX){status('saveStatus','Cargando herramienta de Excel...');try{await loadXLSX()}catch(e){status('saveStatus','No se pudo cargar la biblioteca Excel. Comprueba internet y usa Exportar CSV como alternativa.','error');return}}
+ const data=records.map(r=>({'Fecha':r.date,'Código de barras':r.barcode,'Nombre del producto':r.name,'Cantidad':r.quantity,'Ubicación':r.location,'Observaciones':r.notes}));
+ const ws=XLSX.utils.json_to_sheet(data);ws['!cols']=[{wch:22},{wch:22},{wch:30},{wch:12},{wch:22},{wch:42}];
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Inventario');XLSX.writeFile(wb,'inventario_codigos.xlsx');
+ status('saveStatus','Archivo Excel preparado para descargar.','good')
+});
+function loadXLSX(){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onload=resolve;s.onerror=reject;document.head.appendChild(s)})}
+$('backupJson').addEventListener('click',()=>{downloadBlob(new Blob([JSON.stringify(records,null,2)],{type:'application/json;charset=utf-8'}),'respaldo_inventario.json')});
+$('deleteAll').addEventListener('click',()=>{if(records.length&&confirm('¿Seguro que deseas borrar TODOS los registros de este dispositivo? Exporta una copia antes si la necesitas.')){records=[];persist();render();status('saveStatus','Todos los registros fueron borrados de este navegador.')}});
+render();
+})();
+</script>
+</body>
+</html>
